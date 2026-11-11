@@ -28,3 +28,4 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+- The root URL serves src/deferral-ledger.html verbatim via a server GET handler in src/routes/index.tsx; edit that HTML file, not React components, because the page must stay a single self-contained file.

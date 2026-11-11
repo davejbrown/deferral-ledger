@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Prices the cost of deferring road repairs and compares paving strategies on the same budget. Schematic Forsyth and Guilford county network with simulated figures.">
+<title>Deferral Ledger</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a ledger sheet. The running debt is the masthead; the street map and the controls sit side by side on wide screens and stack on a phone. */
+:root{
+  --paper:#E9EFE8; --surface:#F6F9F4; --ink:#14211B; --muted:#56665D; --rule:#C4D0C6;
+  --red:#B3261E; --blue:#2A4BB0;
+  --good:#1F8A5B; --fair:#8FAE2E; --watch:#D9A520; --poor:#D96B2B; --failed:#B8302F;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1512; --surface:#16201B; --ink:#E2EBE4; --muted:#93A69A; --rule:#2B3A32;
+    --red:#FF7A6B; --blue:#9DB2FF;
+    --good:#45C08A; --fair:#B5D452; --watch:#F0C445; --poor:#F58A4B; --failed:#F0605A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1512; --surface:#16201B; --ink:#E2EBE4; --muted:#93A69A; --rule:#2B3A32;
+  --red:#FF7A6B; --blue:#9DB2FF;
+  --good:#45C08A; --fair:#B5D452; --watch:#F0C445; --poor:#F58A4B; --failed:#F0605A;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+[hidden]{display:none!important}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:22px}
+h1,h2{font-family:var(--display);font-weight:800;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:30px;line-height:1;text-transform:uppercase}
+h2{font-size:20px;text-transform:uppercase;letter-spacing:.04em}
+p{margin:0}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.mast{display:flex;flex-direction:column;gap:10px;border-bottom:3px double var(--ink);padding-bottom:16px}
+.mast-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.demo{font-family:var(--mono);font-size:11px;color:var(--muted);border:1px dashed var(--muted);padding:2px 8px}
+.ticker{font-family:var(--display);font-weight:800;font-size:clamp(54px,15vw,112px);line-height:.92;color:var(--red);font-variant-numeric:tabular-nums}
+.ticker-cap{max-width:60ch;color:var(--muted)}
+.ticker-cap b{color:var(--ink);font-weight:600}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.sheet{background:var(--surface);border:1px solid var(--rule);padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+canvas{display:block;width:100%;aspect-ratio:2/1;max-width:100%;touch-action:manipulation;cursor:crosshair}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:4px;vertical-align:middle;margin-right:5px}
+.seg{display:flex;border:1px solid var(--ink)}
+.seg button{flex:1;min-width:0;background:transparent;color:var(--ink);border:0;border-right:1px solid var(--ink);font:500 13px var(--body);padding:9px 6px;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.ctl{display:flex;flex-direction:column;gap:4px}
+.ctl-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ctl-val{font-family:var(--display);font-weight:800;font-size:24px;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--ink);margin:0;height:28px}
+.check{display:flex;gap:9px;align-items:flex-start;font-size:13px}
+.check input{margin-top:3px;accent-color:var(--ink);width:16px;height:16px;flex:none}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.kpi{display:flex;flex-direction:column;gap:2px;border-top:2px solid var(--ink);padding-top:6px;min-width:0}
+.kpi strong{font-family:var(--display);font-weight:800;font-size:26px;line-height:1.05;font-variant-numeric:tabular-nums}
+.kpi span{font-size:11.5px;color:var(--muted);line-height:1.3}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:400}
+tr.on td{font-weight:600}
+.scroll{overflow-x:auto}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+.detail dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 14px;margin:0;font-size:13.5px}
+.detail dt{color:var(--muted)}
+.detail dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 7px;border:1px solid currentColor}
+.memo{font-size:14.5px;line-height:1.6;max-width:65ch;white-space:pre-wrap}
+.btn{align-self:flex-start;background:var(--ink);color:var(--paper);border:0;font:600 13px var(--body);padding:9px 16px;cursor:pointer}
+details{font-size:13.5px}
+summary{cursor:pointer;font-weight:600}
+details p{margin-top:8px;color:var(--muted);max-width:68ch}
+svg text{font-family:var(--mono);font-size:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="mast-top">
+      <h1>Deferral Ledger</h1>
+      <span class="demo">Forsyth + Guilford, NC &middot; real corridors, invented figures</span>
+    </div>
+    <div class="label">Added to the two-county road repair bill since you opened the page (simulated)</div>
+    <div class="ticker num" id="ticker">$0.00</div>
+    <p class="ticker-cap">Roads get more expensive to fix every day they wait. Left alone, this network's repair bill grows by <b id="perYear">...</b> in the next year. The question for the budget is which streets to fix first... the ones that look worst, or the ones about to get expensive.</p>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section class="sheet">
+        <div class="seg" role="group" aria-label="Plan shown on the map">
+          <button id="s-nothing" aria-pressed="false">Do nothing</button>
+          <button id="s-worst" aria-pressed="false">Worst first</button>
+          <button id="s-wait" aria-pressed="true">Cost of waiting</button>
+        </div>
+        <canvas id="map" aria-label="Schematic road map of Forsyth and Guilford counties colored by pavement condition. Tap a road for its record."></canvas>
+        <div class="legend" id="legend"></div>
+        <div class="ctl">
+          <div class="ctl-head"><label class="label" for="year">Fiscal year</label><span class="ctl-val" id="yearVal">FY2031</span></div>
+          <input type="range" id="year" min="0" max="9" step="1" value="4">
+        </div>
+        <div class="kpis">
+          <div class="kpi"><strong id="kPci">--</strong><span>Network Pavement Condition Index (PCI), 0 to 100</span></div>
+          <div class="kpi"><strong id="kBill">--</strong><span>Repair bill at the start of the year</span></div>
+          <div class="kpi"><strong id="kPaved">--</strong><span>Lane-miles paved this year (outlined on map)</span></div>
+        </div>
+      </section>
+
+      <section class="sheet detail">
+        <div class="label">Street record &middot; tap any road on the map</div>
+        <h2 id="dName">--</h2>
+        <dl id="dList"></dl>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="sheet">
+        <div class="ctl">
+          <div class="ctl-head"><label class="label" for="budget">Paving budget per year</label><span class="ctl-val" id="budgetVal">$20.0M</span></div>
+          <input type="range" id="budget" min="5" max="45" step="1" value="20">
+        </div>
+        <label class="check" for="floor"><input type="checkbox" id="floor"><span>Area floor: each of the five areas is guaranteed 60% of its share of the budget before the rest competes across both counties. Applies to the cost-of-waiting plan.</span></label>
+      </section>
+
+      <section class="sheet">
+        <h2>Same budget, ten years later</h2>
+        <svg id="chart" viewBox="0 0 340 200" role="img" aria-label="Repair bill by year under each plan"></svg>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Plan</th><th>Spent</th><th>Bill FY2037</th><th>PCI</th><th>Failed lane-mi</th></tr></thead>
+            <tbody id="cmp"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sheet">
+        <h2>Who gets paved</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Area</th><th>PCI now</th><th>Worst first</th><th>Cost of waiting</th><th>Share of spend</th></tr></thead>
+            <tbody id="dist"></tbody>
+          </table>
+        </div>
+        <p class="label" style="text-transform:none;letter-spacing:0">PCI columns are FY2037. Share of spend is under the cost-of-waiting plan.</p>
+      </section>
+    </div>
+  </div>
+
+  <section class="sheet">
+    <h2>Council memo</h2>
+    <p class="memo" id="memo"></p>
+    <button class="btn" id="copy">Copy memo</button>
+  </section>
+
+  <section class="sheet">
+    <h2>What sits underneath</h2>
+    <p style="max-width:68ch">The map is a schematic: major corridors follow their real routes approximately, and local streets are generated around each town. No condition, traffic or cost figure here describes a real road. In North Carolina the state maintains roads outside city limits and counties maintain none, so a real version would be run for the cities or for the state transportation divisions that cover these counties.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Field in this ledger</th><th style="text-align:left">Google dataset that would supply it</th><th style="text-align:left">Here</th></tr></thead>
+        <tbody>
+          <tr><td>Pavement condition per block</td><td style="text-align:left">Street View Insights (imagery graded by Gemini)</td><td style="text-align:left">Simulated</td></tr>
+          <tr><td>Vehicles per day, reliability</td><td style="text-align:left">Roads Management Insights</td><td style="text-align:left">Simulated</td></tr>
+          <tr><td>Businesses and services on the block</td><td style="text-align:left">Places Insights</td><td style="text-align:left">Simulated</td></tr>
+          <tr><td>Decay curve, unit costs, optimizer</td><td style="text-align:left">Not Google. This is the product.</td><td style="text-align:left">Real logic, planning-grade assumptions</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details>
+      <summary>Assumptions you would replace with a city's own numbers</summary>
+      <p>Unit costs run from about $3.50 per square yard for a surface seal at PCI 85 to about $118 for full reconstruction near PCI 12, interpolated between. Roads lose 1 to 5 PCI points a year, fastest between 50 and 70 and on busier streets. A treated road returns to PCI 93 (seal) or 97 (everything heavier). Roads at PCI 85 and above need nothing. Failed means below PCI 35. Costs are held in today's dollars with no inflation.</p>
+    </details>
+  </section>
+</div>
+
+<script>
+function rngFrom(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const COSTPTS=[[85,3.5],[70,7],[58,26],[45,48],[30,82],[12,118],[0,125]];
+function unitCost(p){if(p>=85)return 0;for(let i=0;i<COSTPTS.length-1;i++){const a=COSTPTS[i],b=COSTPTS[i+1];if(p<=a[0]&&p>=b[0])return a[1]+(a[0]-p)/(a[0]-b[0])*(b[1]-a[1])}return 125}
+function treatment(p){return p>=85?"None needed":p>=70?"Surface seal":p>=55?"Mill and overlay":p>=35?"Structural rehabilitation":"Full reconstruction"}
+function decay(p,traffic){const shape=p>=85?1.1:p>=70?1.9:p>=50?3.4:p>=30?3.0:1.8;return Math.max(5,p-shape*(0.85+Math.min(traffic,30000)/30000*0.6))}
+const AREAS=["Winston-Salem","Rest of Forsyth","Greensboro","High Point","Rest of Guilford"];
+function buildCity(seed){
+  const r=rngFrom(seed),M=(la,lo)=>({x:(lo+80.56)*56,y:(36.28-la)*69});
+  const mi=(a,b)=>Math.hypot((a[1]-b[1])*56,(a[0]-b[0])*69);
+  const T=[[36.10,-80.245,"Winston-Salem",7,6],[36.07,-79.79,"Greensboro",8,6],[35.96,-80.00,"High Point",5,5],[36.12,-80.07,"Kernersville",3,3],[36.02,-80.38,"Clemmons",3,2],[35.99,-79.94,"Jamestown",2,2],[36.17,-80.15,"Walkertown",2,2],[36.10,-80.42,"Lewisville",2,2],[36.21,-79.90,"Summerfield",2,2],[36.10,-79.55,"Gibsonville",2,2],[36.24,-80.29,"Rural Hall",2,2],[36.23,-80.38,"Tobaccoville",0,0],[36.18,-80.34,"Bethania",0,0],[36.17,-79.99,"Oak Ridge",0,0],[36.24,-79.98,"Stokesdale",0,0],[35.96,-79.76,"Pleasant Garden",0,0],[36.21,-79.71,"Browns Summit",0,0],[36.08,-79.94,"the airport",0,0]];
+  const ROADS=[
+   ["I-40",2,[[36.02,-80.38],[36.06,-80.30],[36.07,-80.24],[36.08,-80.15],[36.09,-80.07],[36.08,-79.94],[36.05,-79.86],[36.04,-79.80],[36.05,-79.70],[36.07,-79.56]]],
+   ["Salem Parkway (US-421)",2,[[36.10,-80.42],[36.10,-80.33],[36.10,-80.245],[36.11,-80.15],[36.12,-80.07],[36.10,-80.00],[36.08,-79.94]]],
+   ["US-52",2,[[36.24,-80.29],[36.17,-80.26],[36.10,-80.245],[36.04,-80.25],[35.98,-80.26]]],
+   ["Silas Creek Parkway",1,[[36.14,-80.28],[36.12,-80.31],[36.08,-80.31],[36.06,-80.27],[36.07,-80.24]]],
+   ["University Parkway",1,[[36.10,-80.245],[36.14,-80.28],[36.19,-80.28],[36.24,-80.29]]],
+   ["Reynolda Road",1,[[36.10,-80.245],[36.13,-80.29],[36.18,-80.34],[36.23,-80.38]]],
+   ["US-158",1,[[36.02,-80.38],[36.07,-80.31],[36.10,-80.245],[36.14,-80.19],[36.17,-80.15],[36.21,-80.06],[36.24,-79.98]]],
+   ["NC-66",1,[[36.12,-80.07],[36.17,-80.15],[36.21,-80.22],[36.24,-80.29]]],
+   ["I-74",2,[[36.07,-80.24],[36.04,-80.17],[36.00,-80.08],[35.96,-80.00]]],
+   ["Peters Creek Parkway",1,[[36.10,-80.245],[36.05,-80.27],[35.99,-80.29]]],
+   ["Lewisville-Clemmons Road",1,[[36.10,-80.42],[36.06,-80.40],[36.02,-80.38]]],
+   ["I-85",2,[[35.92,-80.02],[35.95,-79.93],[36.00,-79.85],[36.03,-79.78],[36.05,-79.70]]],
+   ["I-73",2,[[36.21,-79.90],[36.15,-79.93],[36.08,-79.94],[36.05,-79.86],[35.99,-79.84],[35.92,-79.82]]],
+   ["Battleground Avenue (US-220)",1,[[36.07,-79.79],[36.11,-79.83],[36.16,-79.87],[36.21,-79.90]]],
+   ["US-29",2,[[36.07,-79.79],[36.12,-79.75],[36.17,-79.72],[36.21,-79.71]]],
+   ["Wendover Avenue",1,[[35.99,-79.99],[36.03,-79.93],[36.06,-79.86],[36.08,-79.79],[36.09,-79.72]]],
+   ["Burlington Road (US-70)",1,[[36.07,-79.79],[36.08,-79.70],[36.08,-79.62],[36.10,-79.55]]],
+   ["Gate City Boulevard",1,[[36.07,-79.79],[36.04,-79.86],[35.99,-79.94],[35.96,-80.00]]],
+   ["NC-68",1,[[35.96,-80.00],[36.03,-79.97],[36.08,-79.94],[36.17,-79.99],[36.24,-79.98]]],
+   ["US-421 South",2,[[36.04,-79.80],[35.99,-79.75],[35.93,-79.70]]],
+   ["NC-150",1,[[36.12,-80.07],[36.17,-79.99],[36.21,-79.90],[36.21,-79.71]]],
+   ["Main Street",1,[[36.00,-80.01],[35.96,-80.00],[35.92,-80.00]]],
+   ["Bryan Boulevard",1,[[36.07,-79.79],[36.10,-79.86],[36.10,-79.93]]],
+   ["Friendly Avenue",1,[[36.07,-79.79],[36.08,-79.87],[36.08,-79.94]]]];
+  const off=[0,0,0,0,0].map(()=>(r()-.5)*20),segs=[];
+  function add(A,B,cls,road){
+    const m=[(A[0]+B[0])/2,(A[1]+B[1])/2];
+    const dW=mi(m,T[0]),dG=mi(m,T[1]),dH=mi(m,T[2]);
+    const d=m[1]<-80.04?(dW<6.5?0:1):(dG<7?2:dH<4.5?3:4);
+    let near=T[0],nd=1e9;T.forEach(t=>{const q=mi(m,t);if(q<nd){nd=q;near=t}});
+    const cen=Math.min(1.3,Math.max(.6,1.3-.05*Math.min(dW,dG,dH)));
+    const lanes=cls===2?4:2,len=mi(A,B),base=cls===2?74:cls===1?66:62;
+    const pci=Math.min(98,Math.max(8,base+off[d]+(r()-.5)*48));
+    const traffic=Math.round((cls===2?28000+r()*50000:cls===1?6000+r()*14000:400+r()*3000)*cen);
+    const places=Math.round((cls===2?4:cls===1?12:3)*cen*cen*cen*(.5+r()));
+    segs.push({a:M(A[0],A[1]),b:M(B[0],B[1]),cls,name:road?road+", near "+near[2]:"Local street, "+near[2],d,lanes,len,area:len*5280*lanes*12/9,pci,traffic,places});
+  }
+  ROADS.forEach(R=>{for(let k=0;k<R[2].length-1;k++){const A=R[2][k],B=R[2][k+1],n=Math.max(1,Math.round(mi(A,B)/1.3));
+    for(let q=0;q<n;q++)add([A[0]+(B[0]-A[0])*q/n,A[1]+(B[1]-A[1])*q/n],[A[0]+(B[0]-A[0])*(q+1)/n,A[1]+(B[1]-A[1])*(q+1)/n],R[1],R[0])}});
+  T.forEach(t=>{const nx=t[3],ny=t[4];if(!nx)return;const g=[];
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)g.push([t[0]+(j-(ny-1)/2)*.0125+(r()-.5)*.004,t[1]+(i-(nx-1)/2)*.0155+(r()-.5)*.005]);
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+      if(i<nx-1){if(r()<.14){r();r();r()}else add(g[j*nx+i],g[j*nx+i+1],0,"")}
+      if(j<ny-1){if(r()<.14){r();r();r()}else add(g[j*nx+i],g[(j+1)*nx+i],0,"")}}});
+  const box=(n,la0,la1,lo0,lo1)=>{const a=M(la1,lo0),b=M(la0,lo1);return{name:n,x0:a.x,y0:a.y,x1:b.x,y1:b.y}};
+  return {segs,counties:[box("FORSYTH",35.97,36.26,-80.52,-80.04),box("GUILFORD",35.90,36.26,-80.04,-79.53)],towns:T.slice(0,4).map(t=>({name:t[2],p:M(t[0],t[1])}))};
+}
+function simulate(city,budget,strategy,floor){
+  const S=city.segs,n=S.length,Y=10;
+  let p=S.map(s=>s.pci);
+  const hist=[p.slice()],funded=S.map(()=>-1),spentBy=[0,0,0,0,0],spentYr=[],lmYr=[];
+  const areaTot=S.reduce((t,s)=>t+s.area,0),share=[0,0,0,0,0];S.forEach(s=>share[s.d]+=s.area/areaTot);
+  for(let y=0;y<Y;y++){
+    let spent=0,lm=0;
+    if(strategy!=="nothing"&&budget>0){
+      const cand=[];
+      for(let i=0;i<n;i++){if(p[i]>=85)continue;const c=unitCost(p[i])*S[i].area;
+        const key=strategy==="worst"?-p[i]:(unitCost(decay(p[i],S[i].traffic))*S[i].area-c)/c;cand.push({i,c,key})}
+      cand.sort((a,b)=>b.key-a.key);
+      const done=new Set();
+      const fund=(q)=>{done.add(q.i);spent+=q.c;lm+=S[q.i].len*S[q.i].lanes;spentBy[S[q.i].d]+=q.c;funded[q.i]=y};
+      if(floor&&strategy==="wait"){for(let d=0;d<5;d++){let left=.6*budget*share[d];for(const q of cand){if(S[q.i].d!==d||q.c>left)continue;fund(q);left-=q.c}}}
+      for(const q of cand){if(done.has(q.i)||q.c>budget-spent)continue;fund(q)}
+      done.forEach(i=>{p[i]=p[i]>=70?93:97});
+    }
+    spentYr.push(spent);lmYr.push(lm);
+    p=p.map((v,i)=>decay(v,S[i].traffic));hist.push(p.slice());
+  }
+  const bill=hist.map(h=>h.reduce((t,v,i)=>t+unitCost(v)*S[i].area,0));
+  const pci=hist.map(h=>h.reduce((t,v,i)=>t+v*S[i].area,0)/areaTot);
+  const failed=hist.map(h=>h.reduce((t,v,i)=>t+(v<35?S[i].len*S[i].lanes:0),0));
+  const dPci=[0,1,2,3,4].map(d=>{let a=0,w=0;S.forEach((s,i)=>{if(s.d===d){a+=hist[Y][i]*s.area;w+=s.area}});return a/w});
+  return {hist,funded,bill,pci,failed,spentBy,spentYr,lmYr,dPci,share};
+}
+
+const $=id=>document.getElementById(id);
+const city=buildCity(20261111);
+const st={plan:"wait",year:4,budget:20e6,floor:false,sel:0};
+let sims={},colors={};
+const money=v=>v>=1e6?"$"+(v/1e6).toFixed(1)+"M":"$"+Math.round(v/1e3)+"K";
+const FY=y=>"FY"+(2027+y);
+const PLAN={nothing:"Do nothing",worst:"Worst first",wait:"Cost of waiting"};
+const band=p=>p>=85?"good":p>=70?"fair":p>=55?"watch":p>=35?"poor":"failed";
+const READ={good:"Clean surface, tight joints",fair:"Hairline and edge cracking",watch:"Block cracking, patches showing",poor:"Alligator cracking, rutting",failed:"Potholes, base failure"};
+
+function readColors(){const cs=getComputedStyle(document.documentElement);["paper","surface","ink","muted","rule","red","blue","good","fair","watch","poor","failed"].forEach(k=>colors[k]=cs.getPropertyValue("--"+k).trim())}
+function run(){["nothing","worst","wait"].forEach(k=>sims[k]=simulate(city,st.budget,k,st.floor))}
+
+const cv=$("map"),cx=cv.getContext("2d");
+function proj(){const w=cv.width,h=cv.height,pad=w*.03,s=Math.min((w-2*pad)/59.36,(h-2*pad)/27.6),ox=(w-59.36*s)/2,oy=(h-27.6*s)/2;return q=>[ox+q.x*s,oy+q.y*s]}
+function drawMap(){
+  const dpr=Math.min(window.devicePixelRatio||1,2),W=cv.clientWidth;if(!W)return;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(W*dpr/2);
+  const P=proj(),k=cv.width/720,sim=sims[st.plan],h=sim.hist[st.year];
+  cx.fillStyle=colors.surface;cx.fillRect(0,0,cv.width,cv.height);
+  cx.lineCap="round";
+  cx.lineWidth=k;cx.setLineDash([4*k,4*k]);cx.font="800 "+Math.round(30*k)+"px 'Big Shoulders Display',sans-serif";cx.textAlign="left";cx.textBaseline="top";
+  city.counties.forEach(c=>{const a=P({x:c.x0,y:c.y0}),b=P({x:c.x1,y:c.y1});cx.strokeStyle=colors.muted;cx.strokeRect(a[0],a[1],b[0]-a[0],b[1]-a[1]);cx.fillStyle=colors.rule;cx.fillText(c.name,a[0]+8*k,a[1]+6*k)});cx.setLineDash([]);
+  const w=s=>(s.cls===2?4:s.cls===1?2.6:1.4)*k;
+  const line=(s,width,color)=>{const a=P(s.a),b=P(s.b);cx.strokeStyle=color;cx.lineWidth=width;cx.beginPath();cx.moveTo(a[0],a[1]);cx.lineTo(b[0],b[1]);cx.stroke()};
+  city.segs.forEach((s,i)=>{if(sim.funded[i]===st.year)line(s,w(s)+4*k,colors.ink)});
+  city.segs.forEach((s,i)=>line(s,w(s),colors[band(h[i])]));
+  cx.font="500 "+Math.round(11*k)+"px 'IBM Plex Mono',monospace";cx.textAlign="center";cx.textBaseline="bottom";cx.lineJoin="round";
+  city.towns.forEach(t=>{const c=P(t.p);cx.strokeStyle=colors.surface;cx.lineWidth=4*k;cx.strokeText(t.name,c[0],c[1]-7*k);cx.fillStyle=colors.ink;cx.fillText(t.name,c[0],c[1]-7*k)});
+  const s=city.segs[st.sel],a=P(s.a),b=P(s.b);
+  cx.strokeStyle=colors.blue;cx.lineWidth=2*k;cx.beginPath();cx.arc((a[0]+b[0])/2,(a[1]+b[1])/2,13*k,0,Math.PI*2);cx.stroke();
+}
+function pick(ev){
+  const r=cv.getBoundingClientRect(),sx=cv.width/r.width,x=(ev.clientX-r.left)*sx,y=(ev.clientY-r.top)*sx,P=proj();
+  let best=-1,bd=1e9;
+  city.segs.forEach((s,i)=>{const a=P(s.a),b=P(s.b),dx=b[0]-a[0],dy=b[1]-a[1];let t=((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy);t=Math.max(0,Math.min(1,t));const d=Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy);if(d<bd){bd=d;best=i}});
+  if(best>=0&&bd<26*sx){st.sel=best;drawMap();drawDetail()}
+}
+function drawDetail(){
+  const s=city.segs[st.sel],sim=sims[st.plan],p=sim.hist[st.year][st.sel],b=band(p);
+  let q=s.pci;const now=unitCost(q)*s.area;for(let i=0;i<3;i++)q=decay(q,s.traffic);const later=unitCost(q)*s.area;
+  const f=sim.funded[st.sel];
+  $("dName").textContent=s.name;
+  const rows=[
+    ["Class",["Local street","Major road","Freeway or expressway"][s.cls]+" · "+AREAS[s.d]],
+    ["PCI in "+FY(st.year),'<span class="pill" style="color:var(--'+b+')">'+Math.round(p)+"</span>"],
+    ["What the imagery shows",READ[b]],
+    ["Vehicles per day",s.traffic.toLocaleString()],
+    ["Places on the block",s.places],
+    ["Fix today ("+treatment(s.pci).toLowerCase()+")",now?money(now):"$0"],
+    ["Fix in three years ("+treatment(q).toLowerCase()+")",later?money(later):"$0"],
+    ["Cost of waiting three years",'<b style="color:var(--red)">'+(later-now>0?"+"+money(later-now):"$0")+"</b>"],
+    ["In the "+PLAN[st.plan].toLowerCase()+" plan",st.plan==="nothing"?"Never paved":f<0?"Not funded in ten years":"Paved "+FY(f)]
+  ];
+  $("dList").innerHTML=rows.map(r=>"<dt>"+r[0]+"</dt><dd>"+r[1]+"</dd>").join("");
+}
+function drawChart(){
+  const X0=40,X1=262,Y0=14,Y1=172,max=Math.max(...sims.nothing.bill)*1.05,step=[5e6,1e7,2e7,5e7,1e8,2e8,5e8].find(v=>max/v<=6)||1e9;
+  const x=i=>X0+i/10*(X1-X0),y=v=>Y1-v/max*(Y1-Y0);
+  let h="";
+  for(let v=0;v<=max;v+=step)h+='<line x1="'+X0+'" x2="'+X1+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--rule)" stroke-width="1"/><text x="'+(X0-5)+'" y="'+(y(v)+3)+'" text-anchor="end" fill="var(--muted)">$'+(v/1e6)+"M</text>";
+  [0,5,10].forEach(i=>h+='<text x="'+x(i)+'" y="190" text-anchor="middle" fill="var(--muted)">'+FY(i)+"</text>");
+  h+='<line x1="'+x(st.year)+'" x2="'+x(st.year)+'" y1="'+Y0+'" y2="'+Y1+'" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 3"/>';
+  const col={nothing:"var(--red)",worst:"var(--blue)",wait:"var(--good)"},ends=[];
+  ["nothing","worst","wait"].forEach(k=>{const b=sims[k].bill;
+    h+='<polyline fill="none" stroke="'+col[k]+'" stroke-width="'+(k===st.plan?3:1.6)+'" stroke-linejoin="round" points="'+b.map((v,i)=>x(i)+","+y(v)).join(" ")+'"/><circle cx="'+x(10)+'" cy="'+y(b[10])+'" r="3" fill="'+col[k]+'"/>';
+    ends.push({k,y:y(b[10]),v:b[10]})});
+  ends.sort((a,b)=>a.y-b.y);for(let i=1;i<ends.length;i++)if(ends[i].y-ends[i-1].y<13)ends[i].y=ends[i-1].y+13;
+  const over=ends[2].y-(Y1+2);if(over>0)ends.forEach(e=>e.y-=over);
+  ends.forEach(e=>h+='<text x="'+(X1+8)+'" y="'+(e.y+3.5)+'" fill="'+col[e.k]+'" font-weight="500">'+money(e.v)+"</text>");
+  $("chart").innerHTML=h;
+}
+function drawTables(){
+  const col={nothing:"red",worst:"blue",wait:"good"};
+  $("cmp").innerHTML=["nothing","worst","wait"].map(k=>{const s=sims[k];return'<tr class="'+(k===st.plan?"on":"")+'"><td><span class="dot" style="background:var(--'+col[k]+')"></span>'+PLAN[k]+"</td><td>"+(k==="nothing"?"$0":money(s.spentYr.reduce((a,b)=>a+b,0)))+"</td><td>"+money(s.bill[10])+"</td><td>"+Math.round(s.pci[10])+"</td><td>"+s.failed[10].toFixed(1)+"</td></tr>"}).join("");
+  const w=sims.wait,tot=w.spentBy.reduce((a,b)=>a+b,0)||1;
+  $("dist").innerHTML=[0,1,2,3,4].map(d=>{let a=0,ar=0;city.segs.forEach(s=>{if(s.d===d){a+=s.pci*s.area;ar+=s.area}});
+    return"<tr><td>"+AREAS[d]+"</td><td>"+Math.round(a/ar)+"</td><td>"+Math.round(sims.worst.dPci[d])+"</td><td>"+Math.round(w.dPci[d])+"</td><td>"+Math.round(w.spentBy[d]/tot*100)+"% <span style=\"color:var(--muted)\">of "+Math.round(w.share[d]*100)+"%</span></td></tr>"}).join("");
+}
+function drawMemo(){
+  const n=sims.nothing,a=sims.worst,b=sims.wait,gap=a.bill[10]-b.bill[10];
+  let low=0;b.dPci.forEach((v,i)=>{if(v<b.dPci[low])low=i});
+  const t="To: Regional transportation committee\nRe: Paving priorities, "+FY(0)+" to "+FY(9)+"\n\n"+
+  "The Forsyth and Guilford road network carries a repair bill of "+money(n.bill[0])+" today. With no paving program it reaches "+money(n.bill[10])+" by "+FY(10)+".\n\n"+
+  "At "+money(st.budget)+" a year, paving the worst streets first leaves a bill of "+money(a.bill[10])+", a network condition of "+Math.round(a.pci[10])+", and "+a.failed[10].toFixed(1)+" failed lane-miles. "+
+  "The same budget aimed at streets that are about to move into a more expensive repair leaves a bill of "+money(b.bill[10])+", a condition of "+Math.round(b.pci[10])+", and "+b.failed[10].toFixed(1)+" failed lane-miles.\n\n"+
+  (gap>0?"The difference is "+money(gap)+" on the bill. Ten-year spending is "+money(a.spentYr.reduce((x,y)=>x+y,0))+" under worst first and "+money(b.spentYr.reduce((x,y)=>x+y,0))+" under cost of waiting. ":"At this budget the two approaches finish "+money(-gap)+" apart in favor of worst first. ")+
+  (b.failed[10]>a.failed[10]?"The trade is visible: the cost-of-waiting plan leaves "+(b.failed[10]-a.failed[10]).toFixed(1)+" more failed lane-miles standing, because a failed street costs about the same to rebuild next year as this year. ":"")+
+  AREAS[low]+" finishes lowest under the cost-of-waiting plan at a condition of "+Math.round(b.dPci[low])+(st.floor?", with the area floor applied.":". An area floor is available and can be tested before adoption.")+
+  "\n\nFigures are simulated on a schematic network with planning-grade unit costs. They do not describe actual road conditions.";
+  $("memo").textContent=t;
+}
+function drawAll(){
+  const sim=sims[st.plan];
+  $("yearVal").textContent=FY(st.year);$("budgetVal").textContent=money(st.budget);
+  $("kPci").textContent=Math.round(sim.pci[st.year]);$("kBill").textContent=money(sim.bill[st.year]);$("kPaved").textContent=sim.lmYr[st.year].toFixed(1);
+  $("perYear").textContent=money(sims.nothing.bill[1]-sims.nothing.bill[0]);
+  ["nothing","worst","wait"].forEach(k=>$("s-"+k).setAttribute("aria-pressed",k===st.plan));
+  drawMap();drawDetail();drawChart();drawTables();drawMemo();
+}
+
+$("legend").innerHTML=[["good","85+ good"],["fair","70-84 seal"],["watch","55-69 overlay"],["poor","35-54 rehab"],["failed","under 35 failed"]].map(l=>'<span><i style="background:var(--'+l[0]+')"></i>'+l[1]+"</span>").join("");
+["nothing","worst","wait"].forEach(k=>$("s-"+k).addEventListener("click",()=>{st.plan=k;drawAll()}));
+$("year").addEventListener("input",e=>{st.year=+e.target.value;drawAll()});
+$("budget").addEventListener("input",e=>{st.budget=+e.target.value*1e6;run();drawAll()});
+$("floor").addEventListener("change",e=>{st.floor=e.target.checked;run();drawAll()});
+cv.addEventListener("click",pick);
+$("copy").addEventListener("click",()=>{const b=$("copy"),t=$("memo").textContent,ok=()=>{b.textContent="Copied";setTimeout(()=>b.textContent="Copy memo",1600)};
+  const fb=()=>{const r=document.createRange();r.selectNodeContents($("memo"));const s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent="Selected, press copy"};
+  try{navigator.clipboard.writeText(t).then(ok,fb)}catch(e){fb()}});
+
+readColors();run();
+st.year=+$("year").value;st.budget=+$("budget").value*1e6;st.floor=$("floor").checked;run();
+{let best=0,bk=-1;city.segs.forEach((s,i)=>{if(s.pci>=85)return;const c=unitCost(s.pci)*s.area;let q=s.pci;for(let j=0;j<3;j++)q=decay(q,s.traffic);const k=unitCost(q)*s.area-c;if(k>bk){bk=k;best=i}});st.sel=best}
+drawAll();
+const t0=Date.now(),still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+setInterval(()=>{const rate=(sims.nothing.bill[1]-sims.nothing.bill[0])/31536000;$("ticker").textContent="$"+(rate*(Date.now()-t0)/1000).toFixed(2)},still?1000:90);
+const retheme=()=>{readColors();drawMap()};
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",retheme);
+new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+addEventListener("resize",drawMap);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(drawMap);
+</script>
+</body>
+</html>
